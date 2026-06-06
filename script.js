@@ -3429,6 +3429,47 @@ function toggleNotesButton(btn, problemId) {
   const hasNotes = btn.classList.toggle("active");
 }
 
+// ===== EDITOR DRAFT LIFECYCLE =====
+
+/**
+ * Persist the current editor content for a problem so the user can resume later.
+ * @param {number|string} problemId
+ * @param {string} code
+ */
+function saveEditorDraft(problemId, code) {
+  try {
+    localStorage.setItem(`editorDraft_${problemId}`, code);
+  } catch (e) {
+    console.warn('Could not save editor draft:', e);
+  }
+}
+
+/**
+ * Read back a previously saved draft, or return null if none exists.
+ * @param {number|string} problemId
+ * @returns {string|null}
+ */
+function getEditorDraft(problemId) {
+  try {
+    return localStorage.getItem(`editorDraft_${problemId}`);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Remove a saved draft after a successful submission / explicit discard.
+ * Safe to call even when no draft exists.
+ * @param {number|string} problemId
+ */
+function clearEditorDraft(problemId) {
+  try {
+    localStorage.removeItem(`editorDraft_${problemId}`);
+  } catch (e) {
+    console.warn('Could not clear editor draft:', e);
+  }
+}
+
 function closeQuizEditor() {
   document.getElementById("quizEditorModal").classList.remove("active");
   currentProblem = null;
@@ -3491,9 +3532,6 @@ function submitQuizCode() {
   addXP(getXPForDifficulty(difficulty));
   updateStreak();
   saveUserData();
-    
-    // Clear editor draft on successful submission
-    clearEditorDraft(currentProblem.id);
 
   // Update UI
   updateDashboard();
@@ -3501,7 +3539,12 @@ function submitQuizCode() {
   initRoadmap();
   initTopicsSection();
 
+  // Tear down the editor first, then clear the draft so it is only removed
+  // after the save/teardown flow has fully completed.
+  const submittedProblemId = currentProblem.id;
   closeQuizEditor();
+  clearEditorDraft(submittedProblemId);
+
   showNotification(
     `🎉 Problem solved! +${getXPForDifficulty(difficulty)} XP`,
     "success",
@@ -3656,7 +3699,10 @@ function openQuizEditor(problem) {
 
   const editor = document.getElementById("codeEditor");
   const lang = document.getElementById("languageSelect").value;
-  editor.value = getDefaultCode(lang, problem);
+  // Restore saved draft if one exists; only fall back to the default template
+  // when there is no in-progress draft for this problem.
+  const savedDraft = getEditorDraft(problem.id);
+  editor.value = savedDraft !== null ? savedDraft : getDefaultCode(lang, problem);
     updateEditorDisplayMode();
 
   clearQuizOutput();
@@ -3978,36 +4024,7 @@ function updateEditorDisplayMode() {
     if (highlight) highlight.hidden = false;
 }
 
-// Toggle output panel (collapses and expands)
-function toggleOutputPanel() {
-    const panel = document.getElementById('outputPanel');
-    const icon = document.getElementById('outputToggleIcon');
-    if (!panel) return;
-    
-    panel.classList.toggle('collapsed');
-    
-    if (icon) {
-        if (panel.classList.contains('collapsed')) {
-            icon.classList.remove('fa-chevron-down');
-            icon.classList.add('fa-chevron-up');
-        } else {
-            icon.classList.remove('fa-chevron-up');
-            icon.classList.add('fa-chevron-down');
-        }
-    }
-}
-
-function updateEditorDisplayMode() {
-    const editor = document.getElementById('codeEditor');
-    const highlight = document.getElementById('syntaxHighlight');
-
-    if (!editor) return;
-
-    editor.classList.remove('plain-text-mode');
-    editor.style.setProperty('color', 'transparent', 'important');
-    editor.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
-    if (highlight) highlight.hidden = false;
-}
+// Duplicate definitions removed — single implementations kept above (lines ~3951-3979).
 
 // Editor event listeners
 // Close shortcuts when clicking outside
@@ -4061,7 +4078,13 @@ function initializeQuizEditor() {
         syncScroll();
     };
 
-    editor.addEventListener('input', syncEditorState);
+    editor.addEventListener('input', () => {
+        syncEditorState();
+        // Persist draft while the user types so it survives page reloads.
+        if (currentProblem) {
+            saveEditorDraft(currentProblem.id, editor.value);
+        }
+    });
     editor.addEventListener('scroll', syncScroll);
     editor.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
