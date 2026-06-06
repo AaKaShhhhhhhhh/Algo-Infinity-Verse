@@ -1629,16 +1629,43 @@ body {
     min-height: 0;
 }
 
+.code-editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
 .code-editor {
+    position: relative;
     flex: 1;
     width: 100%;
     height: 100%;
-    padding: 1rem 1rem 1rem 3rem;
     background: var(--dark-bg);
-    color: var(--text-primary);
+    overflow: hidden;
+}
+
+.code-textarea {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 45px;
+    right: 0;
+    width: calc(100% - 45px);
+    height: 100%;
+    padding: 1rem 1.5rem;
+    margin: 0;
+    background: transparent;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: var(--text-primary);
     font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
     font-size: 14px;
+    font-weight: 400;
     line-height: 1.6;
+    letter-spacing: normal;
+    word-spacing: normal;
     border: none;
     outline: none;
     resize: none;
@@ -1646,11 +1673,14 @@ body {
     overflow: auto;
     white-space: pre;
     overflow-x: auto;
+    z-index: 2;
+    box-sizing: border-box;
 }
 
-.code-editor::placeholder {
+.code-textarea::placeholder {
     color: var(--text-secondary);
     opacity: 0.6;
+    -webkit-text-fill-color: var(--text-secondary);
 }
 
 .line-numbers {
@@ -1668,9 +1698,11 @@ body {
     font-size: 14px;
     line-height: 1.6;
     user-select: none;
-    pointer-events: auto;
+    pointer-events: none;
     overflow: hidden;
-    z-index: 1;
+    z-index: 3;
+    white-space: pre;
+    box-sizing: border-box;
 }
 
 .editor-shortcuts {
@@ -2062,10 +2094,16 @@ body {
 }
 
 .quiz-modal-content {
+    background: var(--dark-surface);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    width: 100%;
     max-width: 1100px;
     max-height: 90vh;
     border-radius: 20px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .quiz-modal-header {
@@ -2093,7 +2131,8 @@ body {
 
 .quiz-modal-body {
     padding: 0;
-    max-height: calc(90vh - 200px);
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 
@@ -2678,27 +2717,47 @@ body.light-mode {
     border-radius: 3px;
 }
 
-/* Syntax highlighting simulation */
 .syntax-highlight {
     position: absolute;
     top: 0;
-    left: 52px;
-    right: 0;
     bottom: 0;
+    left: 45px;
+    right: 0;
+    width: calc(100% - 45px);
+    height: 100%;
     padding: 1rem 1.5rem;
-    font-family: 'Fira Code', 'Consolas', monospace;
+    margin: 0;
+    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
     font-size: 14px;
+    font-weight: 400;
     line-height: 1.6;
+    letter-spacing: normal;
+    word-spacing: normal;
     white-space: pre;
     pointer-events: none;
     overflow: hidden;
     color: var(--text-primary);
+    z-index: 1;
+    box-sizing: border-box;
+    background: transparent;
 }
 
-.syntax-highlight .token.keyword { color: #c792ea; font-weight: 600; }
+.output-panel {
+    background: var(--dark-surface);
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.output-panel.collapsed .output-content,
+.output-panel.collapsed .test-cases-container {
+    display: none;
+}
+
+.syntax-highlight .token.keyword { color: #c792ea; }
 .syntax-highlight .token.string { color: #c3e88d; }
 .syntax-highlight .token.number { color: #f78c6c; }
-.syntax-highlight .token.comment { color: #546e7a; font-style: italic; }
+.syntax-highlight .token.comment { color: #546e7a; }
 .syntax-highlight .token.operator { color: #89ddff; }
 .syntax-highlight .token.function { color: #82aaff; }
 

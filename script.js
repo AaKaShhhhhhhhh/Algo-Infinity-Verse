@@ -568,17 +568,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateProfile();
     console.log('App initialization complete');
 
-    // Language change handler for code editor
-    const langSelect = document.getElementById('languageSelect');
-    if (langSelect) {
-        langSelect.addEventListener('change', () => {
-            if (currentProblem) {
-                const editor = document.getElementById('codeEditor');
-                editor.value = getDefaultCode(langSelect.value, currentProblem);
-                editor.dispatchEvent(new Event('input'));
-            }
-        });
-    }
 
     // Modal close handlers
     const modalClose = document.getElementById('modalClose');
@@ -1808,6 +1797,9 @@ function submitQuizCode() {
     updateStreak();
     saveUserData();
     
+    // Clear editor draft on successful submission
+    clearEditorDraft(currentProblem.id);
+    
     // Update UI
     updateDashboard();
     updateGamification();
@@ -1882,13 +1874,31 @@ function openQuizEditor(problem) {
     const editor = document.getElementById("codeEditor");
     const lang = document.getElementById("languageSelect").value;
     editor.value = getDefaultCode(lang, problem);
+    updateEditorDisplayMode();
     
     clearQuizOutput();
     
+    // Ensure output panel is expanded (not collapsed) when opening editor
+    const outputPanel = document.getElementById('outputPanel');
+    const outputIcon = document.getElementById('outputToggleIcon');
+    if (outputPanel) {
+        outputPanel.classList.remove('collapsed');
+    }
+    if (outputIcon) {
+        outputIcon.classList.remove('fa-chevron-up');
+        outputIcon.classList.add('fa-chevron-down');
+    }
+    
     modal.classList.add("active");
     
+    // Reset scrolls and update editor layout
+    editor.scrollTop = 0;
+    editor.scrollLeft = 0;
+    editor.dispatchEvent(new Event('input'));
     updateLineNumbers();
+    syncScroll();
 }
+
 function getDefaultCode(lang, problem) {
     const templates = {
         javascript: `/**
@@ -1994,30 +2004,27 @@ function updateSyntaxHighlight() {
 }
 
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 function highlightJS(line) {
-    const keywords = /\b(function|const|let|var|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|new|this|class|extends|super|import|export|from|as|async|await|yield|typeof|instanceof|void|delete|in|of|with|debugger|true|false|null|undefined)\b/g;
-    const strings = /(\"[^"]*\"|'[^']*'|\`[^\`]*\`)/g;
-    const comments = /\/\/.*$/gm;
+    const regex = /(<[^>]+>)|(\/\/.*$)|("[^"]*"|'[^']*'|`[^`]*`)|(\b(function|const|let|var|return|if|else|for|while|do|break|continue|switch|case|default|try|catch|finally|throw|new|this|class|extends|super|import|export|from|as|async|await|yield|typeof|instanceof|void|delete|in|of|with|debugger|true|false|null|undefined)\b)|((?<!\.[a-zA-Z])\b(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\b(?!\.[a-zA-Z]))/g;
 
-    let result = escapeHtml(line);
+    let escaped = escapeHtml(line);
 
-    if (comments.test(line)) {
-        result = result.replace(comments, '<span class=\"token comment\">$&</span>');
-    }
-    result = result.replace(strings, '<span class=\"token string\">$1</span>');
-    result = result.replace(keywords, '<span class=\"token keyword\">$1</span>');
+    let highlighted = escaped.replace(regex, (m, tag, comment, str, kw, num) => {
+        if (tag) return tag;
+        if (comment) return '<span class="token comment">' + comment + '</span>';
+        if (str) return '<span class="token string">' + str + '</span>';
+        if (kw) return '<span class="token keyword">' + kw + '</span>';
+        if (num) return '<span class="token number">' + num + '</span>';
+        return m;
+    });
 
-    const numberRegex = /(?<!\\.[a-zA-Z])\\b(\\d+(\\.\\d*)?|\\.\\d+)([eE][+-]?\\d+)?\\b(?!\\.[a-zA-Z])/g;
-    if (!/<span class=\"token string\">/.test(result)) {
-        result = result.replace(numberRegex, '<span class=\"token number\">$1</span>');
-    }
-
-    return result;
+    return highlighted;
 }
 
 // ===== CODE EDITOR UTILITIES =====
@@ -2032,7 +2039,16 @@ function updateLineNumbers() {
 function syncScroll() {
     const editor = document.getElementById('codeEditor');
     const lineNumbers = document.getElementById('lineNumbers');
-    lineNumbers.scrollTop = editor.scrollTop;
+    const highlight = document.getElementById('syntaxHighlight');
+    if (editor) {
+        if (lineNumbers) {
+            lineNumbers.scrollTop = editor.scrollTop;
+        }
+        if (highlight) {
+            highlight.scrollTop = editor.scrollTop;
+            highlight.scrollLeft = editor.scrollLeft;
+        }
+    }
 }
 
 // Insert code snippet
@@ -2105,6 +2121,37 @@ function toggleShortcuts() {
     }
 }
 
+// Toggle output panel (collapses and expands)
+function toggleOutputPanel() {
+    const panel = document.getElementById('outputPanel');
+    const icon = document.getElementById('outputToggleIcon');
+    if (!panel) return;
+    
+    panel.classList.toggle('collapsed');
+    
+    if (icon) {
+        if (panel.classList.contains('collapsed')) {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        } else {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+}
+
+function updateEditorDisplayMode() {
+    const editor = document.getElementById('codeEditor');
+    const highlight = document.getElementById('syntaxHighlight');
+
+    if (!editor) return;
+
+    editor.classList.remove('plain-text-mode');
+    editor.style.setProperty('color', 'transparent', 'important');
+    editor.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+    if (highlight) highlight.hidden = false;
+}
+
 // Editor event listeners
 // Close shortcuts when clicking outside
 document.addEventListener('click', (e) => {
@@ -2136,6 +2183,64 @@ document.addEventListener('click', (e) => {
         }
     }
 });
+
+function initializeQuizEditor() {
+    const editor = document.getElementById('codeEditor');
+    const languageSelect = document.getElementById('languageSelect');
+
+    if (!editor || editor.dataset.initialized === 'true') {
+        return;
+    }
+
+    editor.dataset.initialized = 'true';
+
+    const syncEditorState = () => {
+        updateSyntaxHighlight();
+        updateLineNumbers();
+        syncScroll();
+    };
+
+    editor.addEventListener('input', syncEditorState);
+    editor.addEventListener('scroll', syncScroll);
+    editor.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const value = editor.value;
+            editor.value = `${value.slice(0, start)}    ${value.slice(end)}`;
+            editor.selectionStart = editor.selectionEnd = start + 4;
+            syncEditorState();
+        } else if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            runQuizCode();
+        } else if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            submitQuizCode();
+        }
+    });
+
+    if (languageSelect) {
+        languageSelect.addEventListener('change', () => {
+            const editor = document.getElementById('codeEditor');
+            if (editor && currentProblem) {
+                editor.value = getDefaultCode(languageSelect.value, currentProblem);
+                editor.scrollTop = 0;
+                editor.scrollLeft = 0;
+            }
+            syncEditorState();
+            updateEditorDisplayMode();
+        });
+    }
+
+    syncEditorState();
+}
+
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeQuizEditor);
+} else {
+    initializeQuizEditor();
+}
 
 // ===== FOOTER QUESTION HANDLERS =====
 // Initialize some animations after page load
